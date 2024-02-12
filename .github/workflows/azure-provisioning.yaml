@@ -20,6 +20,8 @@ on:
 
 jobs:
   provision:
+    environment:
+      name: dev
     permissions:
       contents: read
       id-token: write
@@ -36,6 +38,30 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
-      # Terraform init
-
-      # Terraform apply
+      # Terraform
+      - name: Deploy Terraform files
+        run: |
+          # Exit when any command returns a failure status.
+          set -e
+  
+          # Write backend.tfvars.
+          echo "resource_group_name = \"$TFSTATE_RESOURCE_GROUP_NAME\"" | tee backend.tfvars
+          echo "storage_account_name = \"$TFSTATE_STORAGE_ACCOUNT_NAME\"" | tee -a backend.tfvars
+          echo "container_name = \"tfstate\"" | tee -a backend.tfvars
+          echo "key = \"$ENVIRONMENT_NAME-mfouquet.tfstate\"" | tee -a backend.tfvars
+          echo 'subscription_id = "${{ secrets.AZURE_SUBSCRIPTION_ID }}"' | tee -a backend.tfvars
+          echo 'tenant_id = "${{ secrets.AZURE_TENANT_ID }}"' | tee -a backend.tfvars
+          echo 'use_msi = true' | tee -a backend.tfvars
+  
+          # Initialize Terraform.
+          terraform init -input=false -backend-config="backend.tfvars"
+  
+          # Generate Terraform plan
+          terraform plan -input=false -out=app.tfplan -var-file="env/$ENVIRONMENT_NAME.tfvars"
+  
+          # Apply the Terraform plan.
+          terraform apply -auto-approve app.tfplan
+        env:
+          TFSTATE_RESOURCE_GROUP_NAME: ${{ vars.TFSTATE_RESOURCE_GROUP_NAME }}
+          TFSTATE_STORAGE_ACCOUNT_NAME: ${{ vars.TFSTATE_STORAGE_ACCOUNT_NAME }}
+          ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
