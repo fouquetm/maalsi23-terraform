@@ -1,0 +1,41 @@
+# 1. Créer une User Assigned Managed Identity dans votre groupe de ressource
+# 2. Créer une Federated credentials dans les settings de la Managed Identity
+#   - Federated credential scenario => Github
+#   - Organization => votre organization Github
+#   - Repository => nom du repo Git qui exécute le github actions
+#   - Entity => Branch
+#   - Branch => le nom de votre branche
+# 2. Affecter un rôle Contributor à cette Managed Identity sur votre abonnement Azure (Access Control)
+# 3. Créer des secrets dans Github
+#   - AZURE_CLIENT_ID => l'ID se récupère dans l'overview de la Managed Identity
+#   - AZURE_TENANT_ID => se récupère avec la commande az account list => tenantId
+#   - AZURE_SUBSCRIPTION_ID => l'ID se récupère dans l'overview de l'Abonnement
+# 4. Tester la Github Actions
+
+
+name: Deploy infrastructure as code on Azure
+
+on:
+  workflow_dispatch:
+
+jobs:
+  provision:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      # Checks out the repository this file is in
+      - uses: actions/checkout@v3
+
+      # Logs in with your Azure credentials
+      - name: Azure login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      # Terraform init
+
+      # Terraform apply
