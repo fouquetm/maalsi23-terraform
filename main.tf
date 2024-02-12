@@ -72,3 +72,55 @@ resource "azurerm_key_vault_access_policy" "webapp01" {
     "Get"
   ]
 }
+
+resource "random_password" "sql_login" {
+  length           = 16
+  special          = false
+}
+
+resource "azurerm_key_vault_secret" "sql_login" {
+  name         = "sql-login"
+  value        = random_password.sql_login.result
+  key_vault_id = azurerm_key_vault.kv01.id
+}
+
+resource "random_password" "sql_password" {
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "azurerm_key_vault_secret" "sql_password" {
+  name         = "sql-password"
+  value        = random_password.sql_password.result
+  key_vault_id = azurerm_key_vault.kv01.id
+}
+
+resource "azurerm_mssql_server" "sql01" {
+  name                         = "sqlsrev-${var.project_name}-01"
+  resource_group_name          = azurerm_resource_group.app01.name
+  location                     = azurerm_resource_group.app01.location
+  version                      = "12.0"
+  administrator_login          = azurerm_key_vault_secret.sql_login.value
+  administrator_login_password = azurerm_key_vault_secret.sql_password.value
+}
+
+resource "azurerm_mssql_database" "db01" {
+  name           = "db-${var.project_name}-01"
+  server_id      = azurerm_mssql_server.sql01.id
+  collation      = "SQL_Latin1_General_CP1_CI_AS"
+  license_type   = "LicenseIncluded"
+  sku_name       = "S0"
+  enclave_type   = "VBS"
+
+  # prevent the possibility of accidental data loss
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "azurerm_key_vault_secret" "app_db_connectionstring" {
+  name         = "DbConnectionString"
+  value        = "Server=tcp:${azurerm_mssql_server.sql01.fully_qualified_domain_name},1433;Initial Catalog=${azurerm_mssql_database.db01.name};Persist Security Info=False;User ID=${azurerm_mssql_server.sql01.administrator_login};Password=${azurerm_mssql_server.sql01.administrator_login_password};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+  key_vault_id = azurerm_key_vault.kv01.id
+}
