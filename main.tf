@@ -1,27 +1,27 @@
-variable "project_name" {
-  type = string
-  description = "Détermine le nom du projet qui sera utilisé pour générer le nom des ressources."
-  default = "mfolabs"
-}
-
 resource "azurerm_resource_group" "app01" {
-  name     = "rg-${var.project_name}-01"
+  name     = "rg-${var.project_name}-${var.environnement}-01"
   location = "West Europe"
+
+  tags = local.tags
 }
 
 resource "azurerm_service_plan" "plan01" {
-  name                = "asp-${var.project_name}-01"
+  name                = "asp-${var.project_name}-${var.environnement}-01"
   resource_group_name = azurerm_resource_group.app01.name
   location            = azurerm_resource_group.app01.location
   os_type             = "Linux"
   sku_name            = "P1v2"
+
+  tags = local.tags
 }
 
 resource "azurerm_linux_web_app" "webapp01" {
-  name                = "app-${var.project_name}-01"
+  name                = "app-${var.project_name}-${var.environnement}-01"
   resource_group_name = azurerm_resource_group.app01.name
   location            = azurerm_service_plan.plan01.location
   service_plan_id     = azurerm_service_plan.plan01.id
+
+  tags = local.tags
 
   site_config {
   }
@@ -37,30 +37,35 @@ resource "azurerm_linux_web_app" "webapp01" {
 }
 
 resource "azurerm_log_analytics_workspace" "loganalystics01" {
-  name                = "logs-${var.project_name}-01"
+  name                = "logs-${var.project_name}-${var.environnement}-01"
   location            = azurerm_resource_group.app01.location
   resource_group_name = azurerm_resource_group.app01.name
   sku                 = "PerGB2018"
   retention_in_days   = 30
+
+  tags = local.tags
 }
 
 resource "azurerm_application_insights" "insights01" {
-  name                = "insights-${var.project_name}-01"
+  name                = "insights-${var.project_name}-${var.environnement}-01"
   location            = azurerm_log_analytics_workspace.loganalystics01.location
   resource_group_name = azurerm_log_analytics_workspace.loganalystics01.resource_group_name
   workspace_id        = azurerm_log_analytics_workspace.loganalystics01.id
   application_type    = "web"
+
+  tags = local.tags
 }
 
 resource "azurerm_key_vault" "kv01" {
-  name                        = "kv-${var.project_name}-01"
+  name                        = "kv-${var.project_name}-${var.environnement}-01"
   location                    = azurerm_resource_group.app01.location
   resource_group_name         = azurerm_resource_group.app01.name
   tenant_id                   = data.azurerm_client_config.current.tenant_id
   soft_delete_retention_days  = 7
   purge_protection_enabled    = false
-
   sku_name = "standard"
+
+  tags = local.tags
 }
 
 resource "azurerm_key_vault_access_policy" "webapp01" {
@@ -97,16 +102,18 @@ resource "azurerm_key_vault_secret" "sql_password" {
 }
 
 resource "azurerm_mssql_server" "sql01" {
-  name                         = "sqlsrev-${var.project_name}-01"
+  name                         = "sqlsrev-${var.project_name}-${var.environnement}-01"
   resource_group_name          = azurerm_resource_group.app01.name
   location                     = azurerm_resource_group.app01.location
   version                      = "12.0"
   administrator_login          = azurerm_key_vault_secret.sql_login.value
   administrator_login_password = azurerm_key_vault_secret.sql_password.value
+
+  tags = local.tags
 }
 
 resource "azurerm_mssql_database" "db01" {
-  name           = "db-${var.project_name}-01"
+  name           = "db-${var.project_name}-${var.environnement}-01"
   server_id      = azurerm_mssql_server.sql01.id
   collation      = "SQL_Latin1_General_CP1_CI_AS"
   license_type   = "LicenseIncluded"
@@ -115,8 +122,10 @@ resource "azurerm_mssql_database" "db01" {
 
   # prevent the possibility of accidental data loss
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
+
+  tags = local.tags
 }
 
 resource "azurerm_key_vault_secret" "app_db_connectionstring" {
